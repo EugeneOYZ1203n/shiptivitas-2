@@ -127,7 +127,49 @@ app.put('/api/v1/clients/:id', (req, res) => {
 
   /* ---------- Update code below ----------*/
 
+  const prevStatus = client.status
+  const prevPriority = client.priority
+  const updateStmt = db.prepare('UPDATE clients SET status = ?, priority = ? WHERE id = ?'); 
 
+  if (status === prevStatus && priority && prevPriority !== priority) {
+    client.priority = priority - 0.5
+    // So it will be sorted before the client with the original priority
+
+    const clientsWithSameStatus = clients.filter(el => el.status !== prevStatus)
+      .sort((a, b) => a.priority - b.priority)
+      .map((element, index) => ({
+        ...element,
+        priority: index + 1
+      }));
+    
+    clientsWithSameStatus.forEach(el => {
+      updateStmt.run(el.status, el.priority, el.id)
+    })
+  }
+  else if (status !== prevStatus) {
+    client.status = newStatus;
+    client.priority = priority ? priority - 0.5 : Number.MAX_SAFE_INTEGER;
+
+    const clientsWithPrevStatus = clients.filter(el => el.status === prevStatus)
+      .sort((a, b) => a.priority - b.priority)
+      .map((element, index) => ({
+        ...element,
+        priority: index + 1,
+      }));
+    const clientsWithCurrStatus = clients.filter(el => el.status === status)
+      .sort((a, b) => a.priority - b.priority)
+      .map((element, index) => ({
+        ...element,
+        priority: index + 1,
+      }));
+
+    clientsWithPrevStatus.forEach(el => {
+      updateStmt.run(el.status, el.priority, el.id)
+    })
+    clientsWithCurrStatus.forEach(el => {
+      updateStmt.run(el.status, el.priority, el.id)
+    })
+  }
 
   return res.status(200).send(clients);
 });
